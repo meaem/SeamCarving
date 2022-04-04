@@ -48,23 +48,37 @@ fun updateImage(inImage: BufferedImage, seam: List<Pair<Int, Int>>) {
 
 }
 
-fun findBestSeam(energyMatrix: Array<Array<Double>>): List<Pair<Int, Int>> {
+fun findBestSeam(energyMatrix1: Array<Array<Double>>): List<Pair<Int, Int>> {
+    val cols = energyMatrix1.size
+    val rows = energyMatrix1[0].size
+    val imaginaryMatrix = Array(cols) {
+        Array(rows) {
+            if (it == 0 || it == rows - 1)
+                0.0
+            else {
+                Double.POSITIVE_INFINITY
+            }
+        }
+//
+    }
 
-    println("energyMatrix: ${energyMatrix.size} X ${energyMatrix[0].size}")
+    println("energyMatrix1: ${energyMatrix1.size} X ${energyMatrix1[0].size}")
+    println("imaginaryMatrix: ${imaginaryMatrix.size} X ${imaginaryMatrix[0].size}")
+    println(imaginaryMatrix.map { it.joinToString(" ") }.joinToString("\n"))
     val result = mutableListOf<Pair<Int, Int>>()
 
-    var minCol = energyMatrix.map { it[0] }.also { print("$it,") }.withIndex().minByOrNull { (_, f) -> f }!!.index
-    result.add(minCol to 0)
-
-    for (row in 1..energyMatrix[0].lastIndex) {
-        minCol += listOf(
-            energyMatrix[minCol - 1][row],
-            energyMatrix[minCol][row],
-            energyMatrix[minCol + 1][row]
-        ).withIndex()
-         .minByOrNull { (_, f) -> f }!!.index - 1
-        result.add(minCol to row)
-    }
+//    var minCol = energyMatrix1.map { it[0] }.withIndex().minByOrNull { (_, f) -> f }!!.index
+//    result.add(minCol to 0)
+//
+//    for (row in 1..energyMatrix[0].lastIndex) {
+//        minCol += listOf(
+//            energyMatrix[minCol - 1][row],
+//            energyMatrix[minCol][row],
+//            energyMatrix[minCol + 1][row]
+//        ).withIndex()
+//         .minByOrNull { (_, f) -> f }!!.index - 1
+//        result.add(minCol to row)
+//    }
 //    result.add(   minCol  to energyMatrix.lastIndex)
     return result.toList()
 }
