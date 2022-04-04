@@ -22,19 +22,19 @@ fun main(args: Array<String>) {
     val outfileName = args[indx + 1]
     val inImage = ImageIO.read(File(infileName))
     val energyMatrix = inImage.calculateEnergyMatrix()
-//    val maxEnergy = energyMatrix.maxOf {
-//        it.maxOf { it }
-//    }
+    val maxEnergy = energyMatrix.maxOf {
+        it.maxOf { it }
+    }
 
-//    for (x in 0 until inImage.width) {
-//        for (y in 0 until inImage.height) {
-//            val intensity = (255.0 * energyMatrix[x][y] / maxEnergy).toInt()
-//            inImage.setRGB(x, y, Color(intensity, intensity, intensity).rgb)
-//        }
-//    }
-    val seam = findBestSeam(energyMatrix)
-    println(seam)
-    updateImage(inImage, seam)
+    for (x in 0 until inImage.width) {
+        for (y in 0 until inImage.height) {
+            val intensity = (255.0 * energyMatrix[y][x] / maxEnergy).toInt()
+            inImage.setRGB(x, y, Color(intensity, intensity, intensity).rgb)
+        }
+    }
+//    val seam = findBestSeam(energyMatrix)
+//    println(seam)
+//    updateImage(inImage, seam)
 
     ImageIO.write(inImage, "png", File(outfileName))
 }
@@ -96,29 +96,29 @@ fun BufferedImage.deltaY(x: Int, y: Int): Double {
 }
 
 fun BufferedImage.calculateEnergyMatrix(): Array<Array<Double>> {
-    val result = Array(this.width) { Array(this.height) { 0.0 } }
+    val result = Array(this.height) { Array(this.width) { 0.0 } }
 
     // inner central region
-    for (x in 1 until this.width - 1) {
-        for (y in 1 until this.height - 1) {
-            result[x][y] = sqrt(deltaX(x, y) + deltaY(x, y))
+    for (y in 1 until this.height - 1) {
+        for (x in 1 until this.width - 1) {
+            result[y][x] = sqrt(deltaX(x, y) + deltaY(x, y))
         }
     }
 
 
     for (y in 1 until this.height - 1) {
         //left border
-        result[0][y] = sqrt(deltaX(1, y) + deltaY(0, y))
+        result[y][0] = sqrt(deltaX(1, y) + deltaY(0, y))
         //right border
-        result[width - 1][y] = sqrt(deltaX(width - 2, y) + deltaY(width - 1, y))
+        result[y][width - 1] = sqrt(deltaX(width - 2, y) + deltaY(width - 1, y))
 
     }
 
     for (x in 1 until this.width - 1) {
         //top border
-        result[x][0] = sqrt(deltaX(x, 0) + deltaY(x, 1))
+        result[0][x] = sqrt(deltaX(x, 0) + deltaY(x, 1))
         //bottom border
-        result[x][height - 1] = sqrt(deltaX(x, height - 1) + deltaY(x, height - 2))
+        result[height - 1][x] = sqrt(deltaX(x, height - 1) + deltaY(x, height - 2))
 
     }
 
@@ -126,19 +126,19 @@ fun BufferedImage.calculateEnergyMatrix(): Array<Array<Double>> {
     result[0][0] = sqrt(deltaX(1, 0) + deltaY(0, 1))
 
     //top right pixel
-    result[width - 1][0] = sqrt(
+    result[0][width - 1] = sqrt(
         deltaX(width - 2, 0) +
                 deltaY(width - 1, 1)
     )
 
     //bottom left pixel
-    result[0][height - 1] = sqrt(
+    result[height - 1][0] = sqrt(
         deltaX(1, height - 1) +
                 deltaY(0, height - 2)
     )
 
     //bottom right pixel
-    result[width - 1][height - 1] = sqrt(
+    result[height - 1][width - 1] = sqrt(
         deltaX(width - 2, height - 1) +
                 deltaY(width - 1, height - 2)
     )
