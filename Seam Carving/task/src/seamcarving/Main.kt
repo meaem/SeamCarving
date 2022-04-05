@@ -34,8 +34,8 @@ fun main(args: Array<String>) {
 //            inImage.setRGB(x, y, Color(intensity, intensity, intensity).rgb)
 //        }
 //    }
-    val seam = findBestSeam(energyMatrix)
-//    println(seam)
+    val seam = findBestHorizontalSeam(energyMatrix)
+    println(seam)
     updateImage(inImage, seam)
 
     ImageIO.write(inImage, "png", File(outfileName))
@@ -60,7 +60,6 @@ class Node(
 ) : Comparable<Node> {
 
 
-
     override fun compareTo(other: Node): Int {
         return this.distance.compareTo(other.distance)
     }
@@ -68,12 +67,12 @@ class Node(
 
 }
 
-fun findBestSeam(energyMatrix1: Array<Array<Double>>): List<Pair<Int, Int>> {
+fun findBestVerticalSeam(energyMatrix1: Array<Array<Double>>): List<Pair<Int, Int>> {
     val height = energyMatrix1.size
     val width = energyMatrix1[0].size
     val imaginaryMatrix = Array(height + 2) { r ->
         if (r == 0 || r == height + 1)
-            Array(width) { c -> Node(c, r, 0.0, 0.0, null,false,true) }
+            Array(width) { c -> Node(c, r, 0.0, 0.0, null, false, true) }
         else {
             Array(width) { c -> Node(c, r, Double.POSITIVE_INFINITY, energyMatrix1[r - 1][c], null) }
         }
@@ -94,11 +93,11 @@ fun findBestSeam(energyMatrix1: Array<Array<Double>>): List<Pair<Int, Int>> {
         val node = q.remove()
 //        q.clear()
 //        val node = imaginaryMatrix[x][y]
-        val neighbours = getNeighbours(imaginaryMatrix, node)
+        val neighbours = getVerticalNeighbours(imaginaryMatrix, node)
 
         for (nn in neighbours) {
             val newDistance = node.distance + nn.energy
-            if ( nn.imaginary  ||   newDistance < nn.distance) {
+            if (nn.imaginary || newDistance < nn.distance) {
                 nn.distance = newDistance
                 nn.from = node
                 q.add(nn)
@@ -123,34 +122,202 @@ fun findBestSeam(energyMatrix1: Array<Array<Double>>): List<Pair<Int, Int>> {
 //        result.add(minCol to row)
 //    }
 //    result.add(   minCol  to energyMatrix.lastIndex)
-    var n:Node? = imaginaryMatrix.last().last()
-    while (n != null ){
-        if(n.y in 1 until  imaginaryMatrix.lastIndex)
-        result.add(0,n.x to n.y-1)
+    var n: Node? = imaginaryMatrix.last().last()
+    while (n != null) {
+        if (n.y in 1 until imaginaryMatrix.lastIndex)
+            result.add(0, n.x to n.y - 1)
         n = n.from
     }
     return result.toList()
 }
 
-fun getNeighbours(imaginaryMatrix: Array<Array<Node>>, n: Node): List<Node> {
+
+fun getVerticalNeighbours(imaginaryMatrix: Array<Array<Node>>, n: Node): List<Node> {
     val list = mutableListOf<Node>()
 
 
-    if(n.y == 0 || n.y == imaginaryMatrix.lastIndex){
-        if (n.x < imaginaryMatrix[n.y].lastIndex ) {
+    if (n.y == 0 || n.y == imaginaryMatrix.lastIndex) {
+        if (n.x < imaginaryMatrix[n.y].lastIndex) {
             imaginaryMatrix[n.y][n.x + 1].also {
-                if(!it.processded)
+                if (!it.processded)
                     list.add(it)
             }
 
         }
     }
-    if(n.y < imaginaryMatrix.lastIndex){
-       val s = if (n.imaginary) n.x else (n.x-1).coerceAtLeast(0)
-        val e = if (n.imaginary) n.x else (n.x+1).coerceAtMost(imaginaryMatrix[n.y].lastIndex)
-        (s .. e).forEach { c->
-            imaginaryMatrix[n.y+1][c].also {
-                if(!it.processded)
+    if (n.y < imaginaryMatrix.lastIndex) {
+        val s = if (n.imaginary) n.x else (n.x - 1).coerceAtLeast(0)
+        val e = if (n.imaginary) n.x else (n.x + 1).coerceAtMost(imaginaryMatrix[n.y].lastIndex)
+        (s..e).forEach { c ->
+            imaginaryMatrix[n.y + 1][c].also {
+                if (!it.processded)
+                    list.add(it)
+            }
+        }
+//        list.add(imaginaryMatrix[n.y+1][n.x])
+    }
+//
+//    if(n.y == imaginaryMatrix.lastIndex && n.x == imaginaryMatrix[0].lastIndex) listOf()
+//    else{
+//
+//    }
+    return list
+}
+
+
+fun findBestHorizontalSeam(energyMatrix1: Array<Array<Double>>): List<Pair<Int, Int>> {
+    val width = energyMatrix1.size
+    val height = energyMatrix1[0].size
+    val imaginaryMatrix = Array(height + 2) { r ->
+        if (r == 0 || r == height + 1)
+            Array(width) { c -> Node(c, r, 0.0, 0.0, null, false, true) }
+        else {
+            Array(width) { c -> Node(c, r, Double.POSITIVE_INFINITY, energyMatrix1[c][r - 1], null) }
+        }
+//
+    }
+//    var unprocessed = width * (height + 2)
+
+    println("energyMatrix1: ${energyMatrix1.size} X ${energyMatrix1[0].size}")
+    println("imaginaryMatrix: ${imaginaryMatrix.size} X ${imaginaryMatrix[0].size}")
+//    println(imaginaryMatrix.map { it.joinToString(" ") }.joinToString("\n"))
+    val result = mutableListOf<Pair<Int, Int>>()
+
+    val q = PriorityQueue<Node>()
+    q.add(imaginaryMatrix[0].first())
+
+
+    while (q.isNotEmpty()) {
+        val node = q.remove()
+//        q.clear()
+//        val node = imaginaryMatrix[x][y]
+        val neighbours = getVerticalNeighbours(imaginaryMatrix, node)
+
+        for (nn in neighbours) {
+            val newDistance = node.distance + nn.energy
+            if (nn.imaginary || newDistance < nn.distance) {
+                nn.distance = newDistance
+                nn.from = node
+                q.add(nn)
+            }
+
+        }
+        node.processded = true
+//println("q size :${q.size}")
+    }
+//    imaginaryMatrix[0][0].distance=0.0
+
+//    var minCol = energyMatrix1.map { it[0] }.withIndex().minByOrNull { (_, f) -> f }!!.index
+//    result.add(minCol to 0)
+//
+//    for (row in 1..energyMatrix[0].lastIndex) {
+//        minCol += listOf(
+//            energyMatrix[minCol - 1][row],
+//            energyMatrix[minCol][row],
+//            energyMatrix[minCol + 1][row]
+//        ).withIndex()
+//         .minByOrNull { (_, f) -> f }!!.index - 1
+//        result.add(minCol to row)
+//    }
+//    result.add(   minCol  to energyMatrix.lastIndex)
+    var n: Node? = imaginaryMatrix.last().last()
+    while (n != null) {
+        if (n.y in 1 until imaginaryMatrix.lastIndex)
+            result.add(0, n.y-1 to n.x)
+        n = n.from
+    }
+    return result.toList()
+}
+
+
+//fun findBestHorizontalSeam(energyMatrix1: Array<Array<Double>>): List<Pair<Int, Int>> {
+//    val height = energyMatrix1.size
+//    val width = energyMatrix1[0].size
+//    val imaginaryMatrix = Array(height) { r ->
+//
+//        Array(width + 2) { c ->
+//            if (c == 0 || c == width + 1) {
+//                Node(c, r, 0.0, 0.0, null, false, true)
+//            }
+//            else {
+//              Node(c, r, Double.POSITIVE_INFINITY, energyMatrix1[r][c-1], null)
+//            }
+//        }
+////
+//    }
+////    var unprocessed = width * (height + 2)
+//
+//    println("energyMatrix1: ${energyMatrix1.size} X ${energyMatrix1[0].size}")
+//    println("imaginaryMatrix: ${imaginaryMatrix.size} X ${imaginaryMatrix[0].size}")
+////    println(imaginaryMatrix.map { it.joinToString(" ") }.joinToString("\n"))
+//    val result = mutableListOf<Pair<Int, Int>>()
+//
+//    val q = PriorityQueue<Node>()
+//    q.add(imaginaryMatrix.last().first())
+//
+//
+//    while (q.isNotEmpty()) {
+//        val node = q.remove()
+////        q.clear()
+////        val node = imaginaryMatrix[x][y]
+//        val neighbours = getHorizontalNeighbours(imaginaryMatrix, node)
+//
+//        for (nn in neighbours) {
+//            val newDistance = node.distance + nn.energy
+//            if (nn.imaginary || newDistance < nn.distance) {
+//                nn.distance = newDistance
+//                nn.from = node
+//                q.add(nn)
+//            }
+//
+//        }
+//        node.processded = true
+////println("q size :${q.size}")
+//    }
+////    imaginaryMatrix[0][0].distance=0.0
+//
+////    var minCol = energyMatrix1.map { it[0] }.withIndex().minByOrNull { (_, f) -> f }!!.index
+////    result.add(minCol to 0)
+////
+////    for (row in 1..energyMatrix[0].lastIndex) {
+////        minCol += listOf(
+////            energyMatrix[minCol - 1][row],
+////            energyMatrix[minCol][row],
+////            energyMatrix[minCol + 1][row]
+////        ).withIndex()
+////         .minByOrNull { (_, f) -> f }!!.index - 1
+////        result.add(minCol to row)
+////    }
+////    result.add(   minCol  to energyMatrix.lastIndex)
+//    var n: Node? = imaginaryMatrix.first().last()
+//    while (n != null) {
+//        if (n.x in 1 until imaginaryMatrix.first().lastIndex)
+//            result.add(0, n.x to n.y - 1)
+//        n = n.from
+//    }
+//    return result.toList()
+//}
+
+
+fun getHorizontalNeighbours(imaginaryMatrix: Array<Array<Node>>, n: Node): List<Node> {
+    val list = mutableListOf<Node>()
+
+
+    if (n.y == 0 || n.y == imaginaryMatrix.lastIndex) {
+        if (n.x < imaginaryMatrix[n.y].lastIndex) {
+            imaginaryMatrix[n.y][n.x + 1].also {
+                if (!it.processded)
+                    list.add(it)
+            }
+
+        }
+    }
+    if (n.y < imaginaryMatrix.lastIndex) {
+        val s = if (n.imaginary) n.x else (n.x - 1).coerceAtLeast(0)
+        val e = if (n.imaginary) n.x else (n.x + 1).coerceAtMost(imaginaryMatrix[n.y].lastIndex)
+        (s..e).forEach { c ->
+            imaginaryMatrix[n.y + 1][c].also {
+                if (!it.processded)
                     list.add(it)
             }
         }
