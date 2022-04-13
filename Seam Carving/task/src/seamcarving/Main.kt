@@ -1,5 +1,9 @@
 package seamcarving
 
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.joinAll
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import java.awt.Color
 import java.awt.image.BufferedImage
 import java.io.File
@@ -22,31 +26,73 @@ fun main(args: Array<String>) {
         throw IllegalArgumentException("missing '-out' argument")
     }
     val outfileName = args[indx + 1]
-    val inImage = ImageIO.read(File(infileName))
-    val energyMatrix = inImage.calculateEnergyMatrix()
-//    val maxEnergy = energyMatrix.maxOf {
-//        it.maxOf { it }
-//    }
-//
-//    for (x in 0 until inImage.width) {
-//        for (y in 0 until inImage.height) {
-//            val intensity = (255.0 * energyMatrix[y][x] / maxEnergy).toInt()
-//            inImage.setRGB(x, y, Color(intensity, intensity, intensity).rgb)
-//        }
-//    }
-    val seam = findBestHorizontalSeam(energyMatrix)
-    println(seam)
-    updateImage(inImage, seam)
 
-    ImageIO.write(inImage, "png", File(outfileName))
+    indx = args.indexOf("-width")
+    if (indx == -1 || indx == args.lastIndex) {
+        throw IllegalArgumentException("missing '-width' argument")
+    }
+    val width = args[indx + 1].toInt()
+
+    indx = args.indexOf("-height")
+    if (indx == -1 || indx == args.lastIndex) {
+        throw IllegalArgumentException("missing '-height' argument")
+    }
+    val height = args[indx + 1].toInt()
+
+    val inImage = ImageIO.read(File(infileName))
+    var energyMatrix = inImage.calculateEnergyMatrix()
+    energyMatrix = reduceEnergyMatrix(energyMatrix, width, height)
+    println("After reduction energyMatrix: ${energyMatrix.size} X ${energyMatrix[0].size}")
+
+    val outImg = reduceImage(inImage, energyMatrix)
+
+    ImageIO.write(outImg, "png", File(outfileName))
 }
 
-fun updateImage(inImage: BufferedImage, seam: List<Pair<Int, Int>>) {
-//    println("Image widx X height = ${inImage.width} X ${inImage.height}")
-    for (s in seam) {
-//        println("${s.first}, ${s.second}")
-        inImage.setRGB(s.first, s.second, Color.RED.rgb)
+fun reduceEnergyMatrix(
+    energyMatrix: MutableList<MutableList<Double>>,
+    width: Int,
+    height: Int
+): MutableList<MutableList<Double>> {
+    println("energyMatrix: ${energyMatrix.size} X ${energyMatrix[0].size}")
+
+    val energyMatrixCopy =
+        MutableList(energyMatrix.size) { r -> MutableList(energyMatrix.first().size) { c -> energyMatrix[r][c] } }
+    println("energyMatrixCopy: ${energyMatrixCopy.size} X ${energyMatrixCopy[0].size}")
+//    println("imaginaryMatrix: ${imaginaryMatrix.size} X ${imaginaryMatrix[0].size}")
+    for (w in 1..width) {
+        val seam = findBestVerticalSeam(energyMatrixCopy)
+        for (s in seam) {
+            energyMatrixCopy[s.second].removeAt(s.first)
+        }
+        println(seam)
     }
+    val energyMatrixT =
+        MutableList(energyMatrixCopy.first().size) { c -> MutableList(energyMatrixCopy.size) { r -> energyMatrixCopy[r][c] } }
+    println("energyMatrixT: ${energyMatrixT.size} X ${energyMatrixT[0].size}")
+
+    for (h in 1..height) {
+        val seam = findBestVerticalSeam(energyMatrixT)
+
+        println(seam)
+        for (s in seam) {
+            energyMatrixT[s.second].removeAt(s.first)
+        }
+
+    }
+    return MutableList(energyMatrixT.first().size) { c -> MutableList(energyMatrixT.size) { r -> energyMatrixT[r][c] } }
+}
+
+fun reduceImage(inImage: BufferedImage, energyMatrix: MutableList<MutableList<Double>>): BufferedImage {
+//    println("Image widx X height = ${inImage.width} X ${inImage.height}")
+    val outImg = BufferedImage(energyMatrix.first().size, energyMatrix.size, inImage.type)
+
+    for (r in energyMatrix.withIndex()) {
+        for (c in r.value.withIndex())
+//        println("${s.first}, ${s.second}")
+            outImg.setRGB(c.index, r.index, inImage.getRGB(c.index, r.index))
+    }
+    return outImg
 
 }
 
@@ -58,16 +104,12 @@ class Node(
     var processded: Boolean = false,
     val imaginary: Boolean = false
 ) : Comparable<Node> {
-
-
     override fun compareTo(other: Node): Int {
         return this.distance.compareTo(other.distance)
     }
-
-
 }
 
-fun findBestVerticalSeam(energyMatrix1: Array<Array<Double>>): List<Pair<Int, Int>> {
+fun findBestVerticalSeam(energyMatrix1: MutableList<MutableList<Double>>): List<Pair<Int, Int>> {
     val height = energyMatrix1.size
     val width = energyMatrix1[0].size
     val imaginaryMatrix = Array(height + 2) { r ->
@@ -76,13 +118,7 @@ fun findBestVerticalSeam(energyMatrix1: Array<Array<Double>>): List<Pair<Int, In
         else {
             Array(width) { c -> Node(c, r, Double.POSITIVE_INFINITY, energyMatrix1[r - 1][c], null) }
         }
-//
     }
-//    var unprocessed = width * (height + 2)
-
-    println("energyMatrix1: ${energyMatrix1.size} X ${energyMatrix1[0].size}")
-    println("imaginaryMatrix: ${imaginaryMatrix.size} X ${imaginaryMatrix[0].size}")
-//    println(imaginaryMatrix.map { it.joinToString(" ") }.joinToString("\n"))
     val result = mutableListOf<Pair<Int, Int>>()
 
     val q = PriorityQueue<Node>()
@@ -91,8 +127,6 @@ fun findBestVerticalSeam(energyMatrix1: Array<Array<Double>>): List<Pair<Int, In
 
     while (q.isNotEmpty()) {
         val node = q.remove()
-//        q.clear()
-//        val node = imaginaryMatrix[x][y]
         val neighbours = getVerticalNeighbours(imaginaryMatrix, node)
 
         for (nn in neighbours) {
@@ -105,23 +139,7 @@ fun findBestVerticalSeam(energyMatrix1: Array<Array<Double>>): List<Pair<Int, In
 
         }
         node.processded = true
-//println("q size :${q.size}")
     }
-//    imaginaryMatrix[0][0].distance=0.0
-
-//    var minCol = energyMatrix1.map { it[0] }.withIndex().minByOrNull { (_, f) -> f }!!.index
-//    result.add(minCol to 0)
-//
-//    for (row in 1..energyMatrix[0].lastIndex) {
-//        minCol += listOf(
-//            energyMatrix[minCol - 1][row],
-//            energyMatrix[minCol][row],
-//            energyMatrix[minCol + 1][row]
-//        ).withIndex()
-//         .minByOrNull { (_, f) -> f }!!.index - 1
-//        result.add(minCol to row)
-//    }
-//    result.add(   minCol  to energyMatrix.lastIndex)
     var n: Node? = imaginaryMatrix.last().last()
     while (n != null) {
         if (n.y in 1 until imaginaryMatrix.lastIndex)
@@ -154,180 +172,8 @@ fun getVerticalNeighbours(imaginaryMatrix: Array<Array<Node>>, n: Node): List<No
                     list.add(it)
             }
         }
-//        list.add(imaginaryMatrix[n.y+1][n.x])
     }
-//
-//    if(n.y == imaginaryMatrix.lastIndex && n.x == imaginaryMatrix[0].lastIndex) listOf()
-//    else{
-//
-//    }
-    return list
-}
 
-
-fun findBestHorizontalSeam(energyMatrix1: Array<Array<Double>>): List<Pair<Int, Int>> {
-    val width = energyMatrix1.size
-    val height = energyMatrix1[0].size
-    val imaginaryMatrix = Array(height + 2) { r ->
-        if (r == 0 || r == height + 1)
-            Array(width) { c -> Node(c, r, 0.0, 0.0, null, false, true) }
-        else {
-            Array(width) { c -> Node(c, r, Double.POSITIVE_INFINITY, energyMatrix1[c][r - 1], null) }
-        }
-//
-    }
-//    var unprocessed = width * (height + 2)
-
-    println("energyMatrix1: ${energyMatrix1.size} X ${energyMatrix1[0].size}")
-    println("imaginaryMatrix: ${imaginaryMatrix.size} X ${imaginaryMatrix[0].size}")
-//    println(imaginaryMatrix.map { it.joinToString(" ") }.joinToString("\n"))
-    val result = mutableListOf<Pair<Int, Int>>()
-
-    val q = PriorityQueue<Node>()
-    q.add(imaginaryMatrix[0].first())
-
-
-    while (q.isNotEmpty()) {
-        val node = q.remove()
-//        q.clear()
-//        val node = imaginaryMatrix[x][y]
-        val neighbours = getVerticalNeighbours(imaginaryMatrix, node)
-
-        for (nn in neighbours) {
-            val newDistance = node.distance + nn.energy
-            if (nn.imaginary || newDistance < nn.distance) {
-                nn.distance = newDistance
-                nn.from = node
-                q.add(nn)
-            }
-
-        }
-        node.processded = true
-//println("q size :${q.size}")
-    }
-//    imaginaryMatrix[0][0].distance=0.0
-
-//    var minCol = energyMatrix1.map { it[0] }.withIndex().minByOrNull { (_, f) -> f }!!.index
-//    result.add(minCol to 0)
-//
-//    for (row in 1..energyMatrix[0].lastIndex) {
-//        minCol += listOf(
-//            energyMatrix[minCol - 1][row],
-//            energyMatrix[minCol][row],
-//            energyMatrix[minCol + 1][row]
-//        ).withIndex()
-//         .minByOrNull { (_, f) -> f }!!.index - 1
-//        result.add(minCol to row)
-//    }
-//    result.add(   minCol  to energyMatrix.lastIndex)
-    var n: Node? = imaginaryMatrix.last().last()
-    while (n != null) {
-        if (n.y in 1 until imaginaryMatrix.lastIndex)
-            result.add(0, n.y-1 to n.x)
-        n = n.from
-    }
-    return result.toList()
-}
-
-
-//fun findBestHorizontalSeam(energyMatrix1: Array<Array<Double>>): List<Pair<Int, Int>> {
-//    val height = energyMatrix1.size
-//    val width = energyMatrix1[0].size
-//    val imaginaryMatrix = Array(height) { r ->
-//
-//        Array(width + 2) { c ->
-//            if (c == 0 || c == width + 1) {
-//                Node(c, r, 0.0, 0.0, null, false, true)
-//            }
-//            else {
-//              Node(c, r, Double.POSITIVE_INFINITY, energyMatrix1[r][c-1], null)
-//            }
-//        }
-////
-//    }
-////    var unprocessed = width * (height + 2)
-//
-//    println("energyMatrix1: ${energyMatrix1.size} X ${energyMatrix1[0].size}")
-//    println("imaginaryMatrix: ${imaginaryMatrix.size} X ${imaginaryMatrix[0].size}")
-////    println(imaginaryMatrix.map { it.joinToString(" ") }.joinToString("\n"))
-//    val result = mutableListOf<Pair<Int, Int>>()
-//
-//    val q = PriorityQueue<Node>()
-//    q.add(imaginaryMatrix.last().first())
-//
-//
-//    while (q.isNotEmpty()) {
-//        val node = q.remove()
-////        q.clear()
-////        val node = imaginaryMatrix[x][y]
-//        val neighbours = getHorizontalNeighbours(imaginaryMatrix, node)
-//
-//        for (nn in neighbours) {
-//            val newDistance = node.distance + nn.energy
-//            if (nn.imaginary || newDistance < nn.distance) {
-//                nn.distance = newDistance
-//                nn.from = node
-//                q.add(nn)
-//            }
-//
-//        }
-//        node.processded = true
-////println("q size :${q.size}")
-//    }
-////    imaginaryMatrix[0][0].distance=0.0
-//
-////    var minCol = energyMatrix1.map { it[0] }.withIndex().minByOrNull { (_, f) -> f }!!.index
-////    result.add(minCol to 0)
-////
-////    for (row in 1..energyMatrix[0].lastIndex) {
-////        minCol += listOf(
-////            energyMatrix[minCol - 1][row],
-////            energyMatrix[minCol][row],
-////            energyMatrix[minCol + 1][row]
-////        ).withIndex()
-////         .minByOrNull { (_, f) -> f }!!.index - 1
-////        result.add(minCol to row)
-////    }
-////    result.add(   minCol  to energyMatrix.lastIndex)
-//    var n: Node? = imaginaryMatrix.first().last()
-//    while (n != null) {
-//        if (n.x in 1 until imaginaryMatrix.first().lastIndex)
-//            result.add(0, n.x to n.y - 1)
-//        n = n.from
-//    }
-//    return result.toList()
-//}
-
-
-fun getHorizontalNeighbours(imaginaryMatrix: Array<Array<Node>>, n: Node): List<Node> {
-    val list = mutableListOf<Node>()
-
-
-    if (n.y == 0 || n.y == imaginaryMatrix.lastIndex) {
-        if (n.x < imaginaryMatrix[n.y].lastIndex) {
-            imaginaryMatrix[n.y][n.x + 1].also {
-                if (!it.processded)
-                    list.add(it)
-            }
-
-        }
-    }
-    if (n.y < imaginaryMatrix.lastIndex) {
-        val s = if (n.imaginary) n.x else (n.x - 1).coerceAtLeast(0)
-        val e = if (n.imaginary) n.x else (n.x + 1).coerceAtMost(imaginaryMatrix[n.y].lastIndex)
-        (s..e).forEach { c ->
-            imaginaryMatrix[n.y + 1][c].also {
-                if (!it.processded)
-                    list.add(it)
-            }
-        }
-//        list.add(imaginaryMatrix[n.y+1][n.x])
-    }
-//
-//    if(n.y == imaginaryMatrix.lastIndex && n.x == imaginaryMatrix[0].lastIndex) listOf()
-//    else{
-//
-//    }
     return list
 }
 
@@ -343,33 +189,46 @@ fun BufferedImage.deltaY(x: Int, y: Int): Double {
     return aboveColor.delta(bottomColor).gradient().toDouble()
 }
 
-fun BufferedImage.calculateEnergyMatrix(): Array<Array<Double>> {
-    val result = Array(this.height) { Array(this.width) { 0.0 } }
+fun BufferedImage.calculateEnergyMatrix(): MutableList<MutableList<Double>> {
+    val result = MutableList(this.height) { MutableList(this.width) { 0.0 } }
+    runBlocking {
+        val jobs = mutableListOf<Job>()
 
-    // inner central region
-    for (y in 1 until this.height - 1) {
-        for (x in 1 until this.width - 1) {
-            result[y][x] = sqrt(deltaX(x, y) + deltaY(x, y))
+// inner central region
+        for (y in 1 until height - 1) {
+            val job = launch {
+                for (x in 1 until width - 1) {
+
+                    result[y][x] = sqrt(deltaX(x, y) + deltaY(x, y))
+                }
+            }
+            jobs.add(job)
+
         }
+        joinAll()
     }
 
+    runBlocking {
+        launch {
+            for (y in 1 until height - 1) {
+                //left border
+                result[y][0] = sqrt(deltaX(1, y) + deltaY(0, y))
+                //right border
+                result[y][width - 1] = sqrt(deltaX(width - 2, y) + deltaY(width - 1, y))
 
-    for (y in 1 until this.height - 1) {
-        //left border
-        result[y][0] = sqrt(deltaX(1, y) + deltaY(0, y))
-        //right border
-        result[y][width - 1] = sqrt(deltaX(width - 2, y) + deltaY(width - 1, y))
+            }
+        }
+        launch {
+            for (x in 1 until width - 1) {
+                //top border
+                result[0][x] = sqrt(deltaX(x, 0) + deltaY(x, 1))
+                //bottom border
+                result[height - 1][x] = sqrt(deltaX(x, height - 1) + deltaY(x, height - 2))
 
+            }
+        }
+        joinAll()
     }
-
-    for (x in 1 until this.width - 1) {
-        //top border
-        result[0][x] = sqrt(deltaX(x, 0) + deltaY(x, 1))
-        //bottom border
-        result[height - 1][x] = sqrt(deltaX(x, height - 1) + deltaY(x, height - 2))
-
-    }
-
     //top left pixel
     result[0][0] = sqrt(deltaX(1, 0) + deltaY(0, 1))
 
